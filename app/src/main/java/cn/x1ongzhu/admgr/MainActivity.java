@@ -177,6 +177,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void displayImage() {
+        videoPlayer.release();
         imageView.setImageURI(Uri.fromFile(new File(Environment.getExternalStoragePublicDirectory("ads"), "david-kovalenko-414249-unsplash.jpg")));
         Log.d(this.getClass().getName(), "Complete");
         TransitionManager.beginDelayedTransition(transitionsContainer);
