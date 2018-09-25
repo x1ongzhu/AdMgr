@@ -9,34 +9,157 @@
     <link rel="stylesheet" href="css/muse-ui.css">
     <link rel="stylesheet" href="css/material-icons.css">
     <style>
+        html,body{
+            padding: 0;
+            margin: 0;
+        }
         .title{
-        position: fixed;
-        top: 0;
-    }
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        .container{
+            padding-top: 56px;
+        }
+        @media (min-width: 600px){
+            .container {
+                padding-top: 64px;
+            }
+        }
+        .btn-upload{
+            position: absolute;
+            opacity: 0;
+            min-width: 0;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+        }
     </style>
 </head>
 
 <body>
     <div id="app">
         <template>
-            <mu-appbar style="width: 100%;" color="primary" class="title">
-                <mu-button icon slot="left">
-                    <mu-icon value="menu"></mu-icon>
-                </mu-button>
-                Title
-
-                <mu-button flat slot="right">LOGIN</mu-button>
-            </mu-appbar>
+            <mu-container>
+                <mu-appbar style="width: 100%;" color="primary" class="title">
+                    广告列表
+                    <mu-button flat slot="right">上传<input class="btn-upload" type="file" @change="onFileSelect"></mu-button>
+                </mu-appbar>
+                <mu-data-table :columns="columns" :data="fileList" :loading="loading">
+                    <template slot-scope="scope">
+                        <td>{{scope.row.name}}</td>
+                        <td>
+                            <mu-button color="red" small @click="del(scope.row.id)">
+                                删除
+                            </mu-button>
+                        </td>
+                    </template>
+                </mu-data-table>
+                <mu-dialog title="上传" width="360" :open.sync="showConfirmDialog">
+                    <mu-switch v-model="useStartTime"></mu-switch>
+                    <mu-date-input v-model="startTime" label="开始日期" label-float="" full-width :disabled="!useStartTime"></mu-date-input>
+                    <mu-switch v-model="useEndTime"></mu-switch>
+                    <mu-date-input v-model="endTime" label="结束日期" label-float="" full-width :disabled="!useEndTime"></mu-date-input>
+                    <mu-text-field v-model="name" label="名称" label-float></mu-text-field>
+                    <mu-button slot="actions" flat color="primary" @click="confirmUpload">确定</mu-button>
+                </mu-dialog>
+                <mu-dialog title="提示" width="360" :open.sync="showDelDialog">
+                    确认删除？
+                    <mu-button slot="actions" flat @click="showDelDialog=false">取消</mu-button>
+                    <mu-button slot="actions" flat color="red" @click="confirmDel">确定</mu-button>
+                </mu-dialog>
+            </mu-container>
         </template>
     </div>
     <script src="js/vue.js" type="text/javascript"></script>
     <script src="js/muse-ui.js" type="text/javascript"></script>
+    <script src="js/axios.min.js" type="text/javascript"></script>
     <script type="text/javascript">
         new Vue({
             el: '#app',
+            created() {
+                this.getData()
+            },
             data() {
                 return {
-
+                    loading: false,
+                    columns: [
+                        { title: '名称', name: 'name' },
+                        { title: '操作', width: 136, name: 'option', align: 'center' },
+                    ],
+                    fileList: [],
+                    showConfirmDialog: false,
+                    fileToUpload: null,
+                    name: '',
+                    showDelDialog: false,
+                    useStartTime: false,
+                    useEndTime: false,
+                    startTime: undefined,
+                    endTime: undefined
+                }
+            },
+            methods: {
+                getData() {
+                    this.loading = true
+                    axios.get('fileList').then(res => {
+                        this.loading = false
+                        if (res.data.success) {
+                            this.fileList = res.data.data
+                        }
+                    })
+                },
+                onFileSelect(e) {
+                    if (e.target.files.length > 0) {
+                        this.fileToUpload = e.target.files[0]
+                        this.name = e.target.files[0].name
+                        this.showConfirmDialog = true
+                    }
+                },
+                confirmUpload() {
+                    this.loading = true
+                    let data = new FormData()
+                    this.showConfirmDialog = false
+                    data.append('file', this.fileToUpload)
+                    data.append('name', this.name)
+                    if (this.useStartTime && this.startTime) {
+                        let startTime = new Date(this.startTime)
+                        startTime.setHours(0)
+                        startTime.setMinutes(0)
+                        startTime.setSeconds(0)
+                        data.append('startTime', startTime.getTime())
+                    }
+                    if (this.useEndTime && this.endTime) {
+                        let endTime = new Date(this.endTime)
+                        endTime.setHours(23)
+                        endTime.setMinutes(59)
+                        endTime.setSeconds(59)
+                        data.append('endTime', endTime.getTime())
+                    }
+                    axios.post('upload', data).then(res => {
+                        this.loading = false
+                        if (res.data.success) {
+                            this.getData()
+                        }
+                    })
+                },
+                del(id) {
+                    this.fileToDel = id
+                    this.showDelDialog = true
+                },
+                confirmDel() {
+                    this.showDelDialog = false
+                    this.loading = true
+                    axios.get('del', {
+                        params: {
+                            id: this.fileToDel
+                        }
+                    }).then(res => {
+                        this.loading = false
+                        if (res.data.success) {
+                            this.getData()
+                        }
+                    })
                 }
             }
         })
