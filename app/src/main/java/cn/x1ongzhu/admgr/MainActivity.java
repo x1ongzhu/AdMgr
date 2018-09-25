@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
         File file = new File(Environment.getExternalStoragePublicDirectory("adv"), "3a95877e-4a02-4bc1-b699-b0208b03468e.mp4");
         String url = file.getPath();
 
-        videoPlayer.setUp(url, true, "");
+        videoPlayer.setUp("file://" + url, true, "");
     }
 
     @TargetApi(Build.VERSION_CODES.KITKAT)
