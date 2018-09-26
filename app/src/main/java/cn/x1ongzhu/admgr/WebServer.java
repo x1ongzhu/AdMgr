@@ -52,6 +52,12 @@ public class WebServer extends NanoHTTPD {
 
     @Override
     public Response serve(IHTTPSession session) {
+        String authString = session.getHeaders().get("authorization");
+        if (TextUtils.isEmpty(authString)) {
+            Response response = newFixedLengthResponse(Response.Status.UNAUTHORIZED, MIME_HTML, "UNAUTHORIZED");
+            response.addHeader("WWW-Authenticate", "Basic realm='.'");
+            return response;
+        }
         if (session.getUri().equals("/")) {
             try {
                 InputStream inputStream = context.getResources().getAssets().open("www/index.html");
@@ -85,7 +91,7 @@ public class WebServer extends NanoHTTPD {
             if (!directory.exists()) {
                 directory.mkdir();
             }
-            Realm realm = Realm.getInstance(App.configuration);
+            Realm realm = Realm.getDefaultInstance();
             RealmResults<Adv> advList = realm.where(Adv.class).findAll().sort("createTime");
             Result result = new Result(true, realm.copyFromRealm(advList));
             return newFixedLengthResponse(Response.Status.OK, MIME_JSON, result.toString());
@@ -112,16 +118,18 @@ public class WebServer extends NanoHTTPD {
             String name = session.getParms().get("name");
             String startTime = session.getParms().get("startTime");
             String endTime = session.getParms().get("endTime");
+            Integer duration = Integer.valueOf(session.getParms().get("duration"));
 
             File tmpFile = new File(tmpFilePath);
             File targetFile = new File(directory, fileName);
             copyFile(tmpFile, targetFile);
 
-            Realm realm = Realm.getInstance(App.configuration);
+            Realm realm = Realm.getDefaultInstance();
             realm.beginTransaction();
             Adv adv = new Adv();
             adv.setFileName(fileName);
             adv.setName(name);
+            adv.setDuration(duration);
             if (!TextUtils.isEmpty(startTime)) {
                 adv.setStartTime(new Date(Long.valueOf(startTime)));
             }
@@ -146,7 +154,7 @@ public class WebServer extends NanoHTTPD {
             session.parseBody(new HashMap<>());
             String id = session.getParms().get("id");
             if (!TextUtils.isEmpty(id)) {
-                Realm realm = Realm.getInstance(App.configuration);
+                Realm realm = Realm.getDefaultInstance();
                 RealmResults<Adv> advList = realm.where(Adv.class).equalTo("id", id).findAll();
                 for (Adv adv : advList) {
                     File file = new File(directory, adv.getFileName());

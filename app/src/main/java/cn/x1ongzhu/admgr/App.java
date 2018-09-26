@@ -8,18 +8,21 @@ import io.realm.Realm;
 import io.realm.RealmConfiguration;
 
 public class App extends Application {
-    public static RealmConfiguration configuration;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Realm.init(this);
-        configuration = new RealmConfiguration.Builder()
-                .schemaVersion(0)
-                .migration(new DbMigration())
+        RealmConfiguration configuration = new RealmConfiguration.Builder()
+                .schemaVersion(1)
                 .build();
+        Realm.setDefaultConfiguration(configuration);
         try {
-            Realm.migrateRealm(configuration);
+            RealmConfiguration migrationConfig = new RealmConfiguration.Builder()
+                    .schemaVersion(1)
+                    .migration(new DbMigration())
+                    .build();
+            Realm.migrateRealm(migrationConfig);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }

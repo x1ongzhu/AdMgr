@@ -14,6 +14,7 @@ public class Adv extends RealmObject {
     private Date createTime = new Date();
     private Date startTime;
     private Date endTime;
+    private Integer duration;
 
     public String getId() {
         return id;
@@ -61,5 +62,13 @@ public class Adv extends RealmObject {
 
     public void setEndTime(Date endTime) {
         this.endTime = endTime;
+    }
+
+    public Integer getDuration() {
+        return duration;
+    }
+
+    public void setDuration(Integer duration) {
+        this.duration = duration;
     }
 }

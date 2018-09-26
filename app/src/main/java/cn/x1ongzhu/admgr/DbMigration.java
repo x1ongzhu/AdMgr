@@ -23,13 +23,7 @@ public class DbMigration implements RealmMigration {
         // }
         if (oldVersion == 0) {
             RealmObjectSchema advSchema = schema.get("Adv");
-            advSchema.transform(new RealmObjectSchema.Function() {
-                @Override
-                public void apply(DynamicRealmObject obj) {
-                    int oldId = obj.getInt("id");
-                    obj.setString("id", String.valueOf(oldId));
-                }
-            });
+            advSchema.addField("duration", Integer.class);
             oldVersion++;
         }
 

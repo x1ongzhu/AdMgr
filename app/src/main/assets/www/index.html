@@ -62,6 +62,7 @@
                     <mu-switch v-model="useEndTime"></mu-switch>
                     <mu-date-input v-model="endTime" label="结束日期" label-float="" full-width :disabled="!useEndTime"></mu-date-input>
                     <mu-text-field v-model="name" label="名称" label-float></mu-text-field>
+                    <mu-text-field v-model="duration" type="number" placeholder="时长（秒）"></mu-text-field>
                     <mu-button slot="actions" flat color="primary" @click="confirmUpload">确定</mu-button>
                 </mu-dialog>
                 <mu-dialog title="提示" width="360" :open.sync="showDelDialog">
@@ -96,7 +97,8 @@
                     useStartTime: false,
                     useEndTime: false,
                     startTime: undefined,
-                    endTime: undefined
+                    endTime: undefined,
+                    duration: 10
                 }
             },
             methods: {
@@ -122,6 +124,7 @@
                     this.showConfirmDialog = false
                     data.append('file', this.fileToUpload)
                     data.append('name', this.name)
+                    data.append('duration', this.duration)
                     if (this.useStartTime && this.startTime) {
                         let startTime = new Date(this.startTime)
                         startTime.setHours(0)
