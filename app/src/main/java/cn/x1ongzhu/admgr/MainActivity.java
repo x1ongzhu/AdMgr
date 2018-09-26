@@ -1,6 +1,10 @@
 package cn.x1ongzhu.admgr;
 
 import android.annotation.TargetApi;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -53,6 +57,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     private boolean started = false;
     private Adv currentAd;
     private Timer imageTimer;
+    private boolean pause;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,6 +84,20 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     }
 
     private void init() {
+        BroadcastReceiver receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String command = intent.getStringExtra("command");
+                if ("pause".equals(command)) {
+                    pause();
+                } else if ("resume".equals(command)) {
+                    resume();
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("com.example.playmedia.play");
+        registerReceiver(receiver, filter);
 
         videoPlayer.setVideoAllCallBack(this);
 
@@ -117,6 +136,9 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     }
 
     private void next() {
+        if (pause) {
+            return;
+        }
         if (index < data.size() - 1) {
             index++;
         } else {
@@ -138,6 +160,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     }
 
     private void pause() {
+        pause = true;
         int type = getFileType(currentAd);
         if (type == VIDEO_FILE) {
             videoPlayer.onVideoPause();
@@ -147,6 +170,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     }
 
     private void resume() {
+        pause = false;
         int type = getFileType(currentAd);
         if (type == VIDEO_FILE) {
             videoPlayer.onVideoResume();
