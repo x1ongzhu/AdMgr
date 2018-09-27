@@ -20,4 +20,13 @@
         android:layout_height="match_parent"
         android:scaleType="fitCenter"
         android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/text"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/white"
+        android:gravity="center"
+        android:textColor="#333333"
+        android:textSize="20sp" />
 </RelativeLayout>

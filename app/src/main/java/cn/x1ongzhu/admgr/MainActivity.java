@@ -14,13 +14,16 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
+import com.example.playmedia.PlayMediaService;
 import com.shuyu.gsyvideoplayer.GSYVideoManager;
 import com.shuyu.gsyvideoplayer.listener.VideoAllCallBack;
 import com.transitionseverywhere.Slide;
@@ -29,7 +32,12 @@ import com.transitionseverywhere.TransitionSet;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -51,6 +59,8 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     ImageView imageView;
     @BindView(R.id.transitions_container)
     RelativeLayout transitionsContainer;
+    @BindView(R.id.text)
+    TextView text;
     private int index = -1;
     private Timer timer;
     private List<Adv> data;
@@ -58,6 +68,8 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     private Adv currentAd;
     private Timer imageTimer;
     private boolean pause;
+    private long ts;
+    private long tsSum;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,6 +111,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
         filter.addAction("com.example.playmedia.play");
         registerReceiver(receiver, filter);
 
+        text.setText("访问 http://" + getLocalIpAddress() + ":8080/");
         videoPlayer.setVideoAllCallBack(this);
 
         timer = new Timer();
@@ -161,6 +174,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
 
     private void pause() {
         pause = true;
+        tsSum += (System.currentTimeMillis() - ts);
         int type = getFileType(currentAd);
         if (type == VIDEO_FILE) {
             videoPlayer.onVideoPause();
@@ -170,22 +184,25 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     }
 
     private void resume() {
+        ts = System.currentTimeMillis();
         pause = false;
         int type = getFileType(currentAd);
         if (type == VIDEO_FILE) {
             videoPlayer.onVideoResume();
         } else if (type == IMAGE_FILE) {
+            long delay = currentAd.getDuration() * 1000 - tsSum;
             imageTimer = new Timer();
             imageTimer.schedule(new TimerTask() {
                 @Override
                 public void run() {
                     runOnUiThread(() -> next());
                 }
-            }, currentAd.getDuration() * 1000);
+            }, delay > 0 ? delay : 0);
         }
     }
 
     private void playVideo(Adv adv) {
+        text.setVisibility(View.GONE);
         TransitionSet transitionSet = new TransitionSet();
         Slide right = new Slide(Gravity.RIGHT);
         right.addTarget(videoPlayer);
@@ -203,6 +220,9 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     }
 
     private void displayImage(Adv adv) {
+        tsSum = 0;
+        ts = System.currentTimeMillis();
+        text.setVisibility(View.GONE);
         TransitionSet transitionSet = new TransitionSet();
         Slide right = new Slide(Gravity.RIGHT);
         right.addTarget(imageView);
@@ -240,6 +260,30 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
         }
         return UNKNOWN_FILE;
     }
+
+    public String getLocalIpAddress() {
+        List<String> ips = new ArrayList<>();
+        try {
+            for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements(); ) {
+                NetworkInterface intf = en.nextElement();
+                for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements(); ) {
+                    InetAddress inetAddress = enumIpAddr.nextElement();
+                    if (!inetAddress.isLoopbackAddress()) {
+                        ips.add(inetAddress.getHostAddress());
+                    }
+                }
+            }
+        } catch (SocketException ex) {
+            Log.e(this.getClass().getName(), ex.toString());
+        }
+        for (String ip : ips) {
+            if (ip.matches("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$")) {
+                return ip;
+            }
+        }
+        return null;
+    }
+
 
     @TargetApi(Build.VERSION_CODES.KITKAT)
     @Override
@@ -348,7 +392,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
 
     @Override
     public void onPlayError(String url, Object... objects) {
-
+        runOnUiThread(this::next);
     }
 
     @Override
@@ -364,5 +408,31 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     @Override
     public void onClickBlankFullscreen(String url, Object... objects) {
 
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (KeyEvent.KEYCODE_DPAD_RIGHT == keyCode) {
+            if (imageTimer != null) {
+                imageTimer.cancel();
+            }
+            next();
+        } else if (KeyEvent.KEYCODE_DPAD_CENTER == keyCode) {
+            if (pause) {
+                resume();
+            } else {
+                pause();
+            }
+        } else if (KeyEvent.KEYCODE_DPAD_LEFT == keyCode) {
+            int dlpfd = PlayMediaService.dlpopen();
+            PlayMediaService.dlpioctl(dlpfd, 1, 1);
+            System.out.println(dlpfd);
+        } else if (KeyEvent.KEYCODE_DPAD_DOWN == keyCode) {
+            int dlpfd = PlayMediaService.dlpopen();
+            PlayMediaService.dlpioctl(dlpfd, 1, 0);
+            PlayMediaService.dlpioctl(dlpfd, 2, 100);
+            System.out.println(dlpfd);
+        }
+        return super.onKeyUp(keyCode, event);
     }
 }
