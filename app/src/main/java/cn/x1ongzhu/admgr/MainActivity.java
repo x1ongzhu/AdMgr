@@ -1,10 +1,14 @@
 package cn.x1ongzhu.admgr;
 
+import android.Manifest;
 import android.annotation.TargetApi;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.hardware.usb.UsbDeviceConnection;
+import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -24,23 +28,37 @@ import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
 import com.example.playmedia.PlayMediaService;
+import com.hoho.android.usbserial.driver.UsbSerialDriver;
+import com.hoho.android.usbserial.driver.UsbSerialPort;
+import com.hoho.android.usbserial.driver.UsbSerialProber;
+import com.hoho.android.usbserial.util.HexDump;
+import com.hoho.android.usbserial.util.SerialInputOutputManager;
 import com.shuyu.gsyvideoplayer.GSYVideoManager;
 import com.shuyu.gsyvideoplayer.listener.VideoAllCallBack;
 import com.transitionseverywhere.Slide;
 import com.transitionseverywhere.TransitionManager;
 import com.transitionseverywhere.TransitionSet;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -52,6 +70,8 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     private static final int UNKNOWN_FILE = 0;
     private static final int VIDEO_FILE = 1;
     private static final int IMAGE_FILE = 2;
+
+    private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
 
     @BindView(R.id.video_player)
     VideoView videoPlayer;
@@ -70,6 +90,39 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     private boolean pause;
     private long ts;
     private long tsSum;
+    private UsbManager manager;
+    private UsbSerialDriver serialDriver;
+    private UsbSerialPort serialPort;
+    private SerialInputOutputManager serialIoManager;
+    private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
+    private final BroadcastReceiver mUsbPermissionActionReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (ACTION_USB_PERMISSION.equals(action)) {
+                initSerialPort();
+            }
+        }
+    };
+    private String buffer = "";
+
+    private final SerialInputOutputManager.Listener mListener = new SerialInputOutputManager.Listener() {
+
+        @Override
+        public void onRunError(Exception e) {
+        }
+
+        @Override
+        public void onNewData(final byte[] data) {
+            for (byte b : data) {
+                if (b == 10) {
+                    //Log.d("usb serial", buffer);
+                    buffer = "";
+                } else {
+                    buffer += (char) b;
+                }
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,6 +164,10 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
         filter.addAction("com.example.playmedia.play");
         registerReceiver(receiver, filter);
 
+        IntentFilter usbIntentFilter = new IntentFilter();
+        filter.addAction(ACTION_USB_PERMISSION);
+        registerReceiver(mUsbPermissionActionReceiver, usbIntentFilter);
+
         text.setText("访问 http://" + getLocalIpAddress() + ":8080/");
         videoPlayer.setVideoAllCallBack(this);
 
@@ -146,6 +203,22 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
                 }
             }
         }, 0, 10000);
+
+        manager = (UsbManager) getSystemService(Context.USB_SERVICE);
+    }
+
+    void initSerialPort() {
+        // Read some data! Most have just one port (port 0).
+        serialPort = serialDriver.getPorts().get(0);
+        UsbDeviceConnection connection = manager.openDevice(serialDriver.getDevice());
+        try {
+            serialPort.open(connection);
+            serialPort.setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+            serialIoManager = new SerialInputOutputManager(serialPort, mListener);
+            mExecutor.submit(serialIoManager);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void next() {
@@ -172,20 +245,50 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
         }
     }
 
-    private void pause() {
-        pause = true;
-        tsSum += (System.currentTimeMillis() - ts);
-        int type = getFileType(currentAd);
-        if (type == VIDEO_FILE) {
-            videoPlayer.onVideoPause();
-        } else if (type == IMAGE_FILE) {
-            imageTimer.cancel();
+    @Override
+    protected void onResume() {
+        super.onResume();
+        resume();
+
+        List<UsbSerialDriver> availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager);
+        if (availableDrivers.isEmpty()) {
+            return;
+        }
+
+        // Open a connection to the first available driver.
+        serialDriver = availableDrivers.get(0);
+
+        if (manager.hasPermission(serialDriver.getDevice())) {
+            initSerialPort();
+        } else {
+            PendingIntent mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
+            manager.requestPermission(serialDriver.getDevice(), mPermissionIntent);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        pause();
+
+        if (serialIoManager != null) {
+            serialIoManager.stop();
+        }
+        if (serialPort != null) {
+            try {
+                serialPort.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
     private void resume() {
         ts = System.currentTimeMillis();
         pause = false;
+        if (currentAd == null) {
+            return;
+        }
         int type = getFileType(currentAd);
         if (type == VIDEO_FILE) {
             videoPlayer.onVideoResume();
@@ -198,6 +301,20 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
                     runOnUiThread(() -> next());
                 }
             }, delay > 0 ? delay : 0);
+        }
+    }
+
+    private void pause() {
+        pause = true;
+        tsSum += (System.currentTimeMillis() - ts);
+        if (currentAd == null) {
+            return;
+        }
+        int type = getFileType(currentAd);
+        if (type == VIDEO_FILE) {
+            videoPlayer.onVideoPause();
+        } else if (type == IMAGE_FILE) {
+            imageTimer.cancel();
         }
     }
 
@@ -424,14 +541,28 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
                 pause();
             }
         } else if (KeyEvent.KEYCODE_DPAD_LEFT == keyCode) {
-            int dlpfd = PlayMediaService.dlpopen();
-            PlayMediaService.dlpioctl(dlpfd, 1, 1);
-            System.out.println(dlpfd);
+//            int dlpfd = PlayMediaService.dlpopen();
+//            PlayMediaService.dlpioctl(dlpfd, 1, 1);
+//            System.out.println(dlpfd);
+            try {
+                Runtime runtime = Runtime.getRuntime();
+                String[] cmd = {"sh", "-c", "echo 1 > /sys/devices/ff150000.i2c/i2c-0/0-001b/debug_ctr_led"};
+                runtime.exec(cmd);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         } else if (KeyEvent.KEYCODE_DPAD_DOWN == keyCode) {
-            int dlpfd = PlayMediaService.dlpopen();
-            PlayMediaService.dlpioctl(dlpfd, 1, 0);
-            PlayMediaService.dlpioctl(dlpfd, 2, 100);
-            System.out.println(dlpfd);
+//            int dlpfd = PlayMediaService.dlpopen();
+//            PlayMediaService.dlpioctl(dlpfd, 1, 0);
+//            PlayMediaService.dlpioctl(dlpfd, 2, 100);
+//            System.out.println(dlpfd);
+            try {
+                Runtime runtime = Runtime.getRuntime();
+                String[] cmd = {"sh", "-c", "echo 0 > /sys/devices/ff150000.i2c/i2c-0/0-001b/debug_ctr_led"};
+                runtime.exec(cmd);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
         return super.onKeyUp(keyCode, event);
     }
