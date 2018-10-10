@@ -32,10 +32,10 @@ import io.realm.RealmResults;
 public class WebServer extends NanoHTTPD {
 
     private final static String MIME_JSON = "application/json";
-    private final static String MIME_JS = "text/javascript";
-    private final static String MIME_CSS = "text/css";
+    private final static String MIME_JS   = "text/javascript";
+    private final static String MIME_CSS  = "text/css";
 
-    private File directory;
+    private File    directory;
     private Context context;
 
     public WebServer(int port, Context context) {
@@ -82,6 +82,10 @@ public class WebServer extends NanoHTTPD {
             return uploadFile(session);
         } else if (session.getUri().equals("/del")) {
             return deleteFile(session);
+        } else if (session.getUri().equals("/getDistance")) {
+            return getDistance(session);
+        } else if (session.getUri().equals("/setCloseDistance")) {
+            return setCloseDistance(session);
         }
         return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "错误的请求");
     }
@@ -174,6 +178,30 @@ public class WebServer extends NanoHTTPD {
         return newFixedLengthResponse(Response.Status.OK, MIME_JSON, new Result(false, null).toString());
     }
 
+    private Response getDistance(IHTTPSession session) {
+        if (context != null) {
+            int distance = ((MainActivity) context).getDistance();
+            Result result = new Result(true, distance);
+            return newFixedLengthResponse(Response.Status.OK, MIME_JSON, result.toString());
+        }
+        return newFixedLengthResponse(Response.Status.OK, MIME_JSON, new Result(false, null).toString());
+    }
+
+
+    private Response setCloseDistance(IHTTPSession session) {
+        try {
+            if (context != null) {
+                session.parseBody(new HashMap<>());
+                ((MainActivity) context).setCloseDistance(Integer.valueOf(session.getParms().get("distance")));
+                Result result = new Result(true, null);
+                return newFixedLengthResponse(Response.Status.OK, MIME_JSON, result.toString());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return newFixedLengthResponse(Response.Status.OK, MIME_JSON, new Result(false, null).toString());
+    }
+
     public void copyFile(File src, File dst) throws IOException {
         InputStream in = new FileInputStream(src);
         try {
@@ -195,7 +223,7 @@ public class WebServer extends NanoHTTPD {
 
     private class Result {
         private boolean success;
-        private Object data;
+        private Object  data;
 
         public Result(boolean success, Object data) {
             this.success = success;

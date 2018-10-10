@@ -4,15 +4,18 @@ import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.PowerManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -66,61 +69,44 @@ import fi.iki.elonen.NanoHTTPD;
 import io.realm.Realm;
 import io.realm.RealmResults;
 
+import static android.app.Service.START_STICKY;
+
 public class MainActivity extends AppCompatActivity implements VideoAllCallBack {
     private static final int UNKNOWN_FILE = 0;
-    private static final int VIDEO_FILE = 1;
-    private static final int IMAGE_FILE = 2;
+    private static final int VIDEO_FILE   = 1;
+    private static final int IMAGE_FILE   = 2;
 
     private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
 
     @BindView(R.id.video_player)
-    VideoView videoPlayer;
+    VideoView      videoPlayer;
     @BindView(R.id.image_view)
-    ImageView imageView;
+    ImageView      imageView;
     @BindView(R.id.transitions_container)
     RelativeLayout transitionsContainer;
     @BindView(R.id.text)
-    TextView text;
-    private int index = -1;
-    private Timer timer;
+    TextView       text;
+    private int       index   = -1;
+    private Timer     timer;
     private List<Adv> data;
-    private boolean started = false;
-    private Adv currentAd;
-    private Timer imageTimer;
-    private boolean pause;
-    private long ts;
-    private long tsSum;
-    private UsbManager manager;
-    private UsbSerialDriver serialDriver;
-    private UsbSerialPort serialPort;
-    private SerialInputOutputManager serialIoManager;
-    private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
-    private final BroadcastReceiver mUsbPermissionActionReceiver = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (ACTION_USB_PERMISSION.equals(action)) {
-                initSerialPort();
-            }
-        }
-    };
-    private String buffer = "";
+    private boolean   started = false;
+    private Adv       currentAd;
+    private Timer     imageTimer;
+    private boolean   pause;
+    private long      ts;
+    private long      tsSum;
 
-    private final SerialInputOutputManager.Listener mListener = new SerialInputOutputManager.Listener() {
+    private IRSensorService.IRBinder irBinder;
 
+    private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
-        public void onRunError(Exception e) {
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            irBinder = (IRSensorService.IRBinder) service;
         }
 
         @Override
-        public void onNewData(final byte[] data) {
-            for (byte b : data) {
-                if (b == 10) {
-                    //Log.d("usb serial", buffer);
-                    buffer = "";
-                } else {
-                    buffer += (char) b;
-                }
-            }
+        public void onServiceDisconnected(ComponentName name) {
+            irBinder = null;
         }
     };
 
@@ -164,10 +150,6 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
         filter.addAction("com.example.playmedia.play");
         registerReceiver(receiver, filter);
 
-        IntentFilter usbIntentFilter = new IntentFilter();
-        filter.addAction(ACTION_USB_PERMISSION);
-        registerReceiver(mUsbPermissionActionReceiver, usbIntentFilter);
-
         text.setText("访问 http://" + getLocalIpAddress() + ":8080/");
         videoPlayer.setVideoAllCallBack(this);
 
@@ -203,23 +185,8 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
                 }
             }
         }, 0, 10000);
-
-        manager = (UsbManager) getSystemService(Context.USB_SERVICE);
     }
 
-    void initSerialPort() {
-        // Read some data! Most have just one port (port 0).
-        serialPort = serialDriver.getPorts().get(0);
-        UsbDeviceConnection connection = manager.openDevice(serialDriver.getDevice());
-        try {
-            serialPort.open(connection);
-            serialPort.setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-            serialIoManager = new SerialInputOutputManager(serialPort, mListener);
-            mExecutor.submit(serialIoManager);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 
     private void next() {
         if (pause) {
@@ -248,39 +215,15 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     @Override
     protected void onResume() {
         super.onResume();
+        Intent intent = new Intent(this, IRSensorService.class);
+        bindService(intent, serviceConnection, BIND_AUTO_CREATE);
         resume();
-
-        List<UsbSerialDriver> availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager);
-        if (availableDrivers.isEmpty()) {
-            return;
-        }
-
-        // Open a connection to the first available driver.
-        serialDriver = availableDrivers.get(0);
-
-        if (manager.hasPermission(serialDriver.getDevice())) {
-            initSerialPort();
-        } else {
-            PendingIntent mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
-            manager.requestPermission(serialDriver.getDevice(), mPermissionIntent);
-        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         pause();
-
-        if (serialIoManager != null) {
-            serialIoManager.stop();
-        }
-        if (serialPort != null) {
-            try {
-                serialPort.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     private void resume() {
@@ -302,6 +245,14 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
                 }
             }, delay > 0 ? delay : 0);
         }
+
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            String[] cmd = {"sh", "-c", "echo 0 > /sys/devices/ff150000.i2c/i2c-0/0-001b/debug_ctr_led"};
+            runtime.exec(cmd);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void pause() {
@@ -315,6 +266,14 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
             videoPlayer.onVideoPause();
         } else if (type == IMAGE_FILE) {
             imageTimer.cancel();
+        }
+
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            String[] cmd = {"sh", "-c", "echo 1 > /sys/devices/ff150000.i2c/i2c-0/0-001b/debug_ctr_led"};
+            runtime.exec(cmd);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -401,6 +360,18 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
         return null;
     }
 
+    public int getDistance() {
+        if (irBinder != null) {
+            return irBinder.getValue();
+        }
+        return -1;
+    }
+
+    public void setCloseDistance(int distance) {
+        if (irBinder != null) {
+            irBinder.setCloseDistance(distance);
+        }
+    }
 
     @TargetApi(Build.VERSION_CODES.KITKAT)
     @Override

@@ -30,6 +30,13 @@
                 android:resource="@xml/device_filter" />
         </activity>
 
+        <service
+            android:name=".IRSensorService"
+            android:exported="false" />
+        <service
+            android:name=".MyService"
+            android:enabled="true"
+            android:exported="false"></service>
     </application>
 
 </manifest>

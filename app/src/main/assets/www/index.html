@@ -44,7 +44,23 @@
             <mu-container>
                 <mu-appbar style="width: 100%;" color="primary" class="title">
                     广告列表
-                    <mu-button flat slot="right">上传<input class="btn-upload" type="file" @change="onFileSelect"></mu-button>
+                    <mu-menu slot="right">
+                        <mu-button flat>
+                            <mu-icon value="more_vert"></mu-icon>
+                        </mu-button>
+                        <mu-list slot="content">
+                            <mu-list-item button>
+                                <mu-list-item-content>
+                                    <mu-list-item-title>上传<input class="btn-upload" type="file" @change="onFileSelect"></mu-list-item-title>
+                                </mu-list-item-content>
+                            </mu-list-item>
+                            <mu-list-item button @click="showSettingsDialog=true">
+                                <mu-list-item-content>
+                                    <mu-list-item-title>设置</mu-list-item-title>
+                                </mu-list-item-content>
+                            </mu-list-item>
+                        </mu-list>
+                    </mu-menu>
                 </mu-appbar>
                 <mu-data-table :columns="columns" :data="fileList" :loading="loading">
                     <template slot-scope="scope">
@@ -62,13 +78,19 @@
                     <mu-switch v-model="useEndTime"></mu-switch>
                     <mu-date-input v-model="endTime" label="结束日期" label-float="" full-width :disabled="!useEndTime"></mu-date-input>
                     <mu-text-field v-model="name" label="名称" label-float></mu-text-field>
-                    <mu-text-field v-model="duration" type="number" placeholder="时长（秒）"></mu-text-field>
+                    <mu-text-field v-model="duration" type="number" label="时长（秒）" placeholder="时长（秒）"></mu-text-field>
                     <mu-button slot="actions" flat color="primary" @click="confirmUpload">确定</mu-button>
                 </mu-dialog>
                 <mu-dialog title="提示" width="360" :open.sync="showDelDialog">
                     确认删除？
                     <mu-button slot="actions" flat @click="showDelDialog=false">取消</mu-button>
                     <mu-button slot="actions" flat color="red" @click="confirmDel">确定</mu-button>
+                </mu-dialog>
+                <mu-dialog title="设置" width="360" :open.sync="showSettingsDialog">
+                    <mu-text-field v-model="distance" type="number" label="关门距离" placeholder="关门距离"></mu-text-field>
+                    <mu-button slot="actions" flat color="primary" @click="getDistance">获取</mu-button>
+                    <mu-button slot="actions" flat color="primary" @click="showSettingsDialog=false">取消</mu-button>
+                    <mu-button slot="actions" flat color="primary" @click="saveSettings">确定</mu-button>
                 </mu-dialog>
             </mu-container>
         </template>
@@ -77,6 +99,7 @@
     <script src="js/muse-ui.js" type="text/javascript"></script>
     <script src="js/axios.min.js" type="text/javascript"></script>
     <script type="text/javascript">
+        // axios.defaults.baseURL = 'http://192.168.123.103:8080/'
         new Vue({
             el: '#app',
             created() {
@@ -98,7 +121,9 @@
                     useEndTime: false,
                     startTime: undefined,
                     endTime: undefined,
-                    duration: 10
+                    duration: 10,
+                    showSettingsDialog: false,
+                    distance: -1
                 }
             },
             methods: {
@@ -161,6 +186,25 @@
                         this.loading = false
                         if (res.data.success) {
                             this.getData()
+                        }
+                    })
+                },
+                getDistance() {
+                    axios.get('getDistance').then(res => {
+                        if (res.data.success) {
+                            this.distance = res.data.data
+                        }
+                    })
+                },
+                saveSettings() {
+                    this.showSettingsDialog = false
+                    this.loading = true
+                    let data = new FormData()
+                    data.append('distance', this.distance)
+                    axios.post('setCloseDistance', data).then(res => {
+                        this.loading = false
+                        if (res.data.success) {
+                            this.$toast.message('保存成功');
                         }
                     })
                 }

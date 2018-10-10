@@ -15,7 +15,7 @@ public class App extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        PlayerFactory.setPlayManager(new Exo2PlayerManager());
+//        PlayerFactory.setPlayManager(new Exo2PlayerManager());
         Realm.init(this);
         RealmConfiguration configuration = new RealmConfiguration.Builder()
                 .schemaVersion(1)
