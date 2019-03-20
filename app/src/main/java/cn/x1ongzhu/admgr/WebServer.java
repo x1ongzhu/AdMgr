@@ -1,3 +1,4 @@
+
 package cn.x1ongzhu.admgr;
 
 import android.content.Context;
@@ -40,13 +41,13 @@ public class WebServer extends NanoHTTPD {
 
     public WebServer(int port, Context context) {
         super(port);
-        directory = Environment.getExternalStoragePublicDirectory("ads");
         this.context = context;
+        directory = context.getExternalFilesDir("ads");
     }
 
     public WebServer(String hostname, int port, Context context) {
         super(hostname, port);
-        directory = Environment.getExternalStoragePublicDirectory("ads");
+        directory = context.getExternalFilesDir("ads");
         this.context = context;
     }
 

@@ -1,24 +1,17 @@
 package cn.x1ongzhu.admgr;
 
-import android.Manifest;
 import android.annotation.TargetApi;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.hardware.usb.UsbDeviceConnection;
-import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Environment;
-import android.os.Handler;
-import android.os.IBinder;
-import android.os.PowerManager;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -30,46 +23,28 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
-import com.example.playmedia.PlayMediaService;
-import com.hoho.android.usbserial.driver.UsbSerialDriver;
-import com.hoho.android.usbserial.driver.UsbSerialPort;
-import com.hoho.android.usbserial.driver.UsbSerialProber;
-import com.hoho.android.usbserial.util.HexDump;
-import com.hoho.android.usbserial.util.SerialInputOutputManager;
 import com.shuyu.gsyvideoplayer.GSYVideoManager;
 import com.shuyu.gsyvideoplayer.listener.VideoAllCallBack;
 import com.transitionseverywhere.Slide;
-import com.transitionseverywhere.TransitionManager;
 import com.transitionseverywhere.TransitionSet;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import fi.iki.elonen.NanoHTTPD;
 import io.realm.Realm;
 import io.realm.RealmResults;
-
-import static android.app.Service.START_STICKY;
 
 public class MainActivity extends AppCompatActivity implements VideoAllCallBack {
     private static final int UNKNOWN_FILE = 0;
@@ -286,7 +261,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
         left.addTarget(imageView);
         transitionSet.addTransition(left);
         transitionSet.addTransition(right);
-        File file = new File(Environment.getExternalStoragePublicDirectory("ads"), adv.getFileName());
+        File file = new File(getExternalFilesDir("ads"), adv.getFileName());
         String url = file.getPath();
         videoPlayer.setUp("file://" + url, true, "");
         videoPlayer.startPlayLogic();
@@ -306,7 +281,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
         left.addTarget(videoPlayer);
         transitionSet.addTransition(left);
         transitionSet.addTransition(right);
-        File file = new File(Environment.getExternalStoragePublicDirectory("ads"), adv.getFileName());
+        File file = new File(getExternalFilesDir("ads"), adv.getFileName());
         videoPlayer.release();
         Glide.with(this).load(Uri.fromFile(file)).into(imageView);
 //        TransitionManager.beginDelayedTransition(transitionsContainer, transitionSet);
