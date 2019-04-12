@@ -298,7 +298,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
 
     private int getFileType(Adv adv) {
         String[] img = {"jpg", "jpeg", "png", "gif", "bmp"};
-        String[] video = {"avi", "mp4", "flv", "mkv", "3gp", "wmv"};
+        String[] video = {"avi", "mp4", "flv", "mkv", "3gp", "wmv", "mov"};
         for (String ext : img) {
             if (adv.getFileName().toLowerCase().endsWith(ext.toLowerCase())) {
                 return IMAGE_FILE;
