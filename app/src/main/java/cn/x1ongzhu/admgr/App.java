@@ -2,6 +2,7 @@ package cn.x1ongzhu.admgr;
 
 import android.app.Application;
 
+import com.pgyersdk.crash.PgyCrashManager;
 import com.shuyu.gsyvideoplayer.player.PlayerFactory;
 
 import java.io.FileNotFoundException;
@@ -16,6 +17,7 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
 //        PlayerFactory.setPlayManager(new Exo2PlayerManager());
+        PgyCrashManager.register();
         Realm.init(this);
         RealmConfiguration configuration = new RealmConfiguration.Builder()
                 .schemaVersion(1)

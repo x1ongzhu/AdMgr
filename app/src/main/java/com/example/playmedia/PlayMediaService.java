@@ -2,7 +2,7 @@ package com.example.playmedia;
 
 public class PlayMediaService {
     static {
-        System.loadLibrary("playmedia-jni");
+        //System.loadLibrary("playmedia-jni");
     }
 
     public static native int dlpioctl(int var0, int var1, int var2);

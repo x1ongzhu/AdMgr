@@ -160,6 +160,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
                 }
             }
         }, 0, 10000);
+
     }
 
 
@@ -191,7 +192,7 @@ public class MainActivity extends AppCompatActivity implements VideoAllCallBack 
     protected void onResume() {
         super.onResume();
         Intent intent = new Intent(this, IRSensorService.class);
-        bindService(intent, serviceConnection, BIND_AUTO_CREATE);
+        // bindService(intent, serviceConnection, BIND_AUTO_CREATE);
         resume();
     }
 
